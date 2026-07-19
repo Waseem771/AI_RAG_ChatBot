@@ -1,15 +1,28 @@
-﻿import Groq from 'groq-sdk';
+import Groq from 'groq-sdk';
 import config from '../config.js';
 
-const client = new Groq({
-  apiKey: config.groqApiKey,
-});
+let client = null;
+
+// Initialize Groq client with error handling
+function initializeGroqClient() {
+  if (!config.groqApiKey) {
+    throw new Error('GROQ_API_KEY is not configured');
+  }
+  return new Groq({
+    apiKey: config.groqApiKey,
+  });
+}
 
 /**
  * Generate a response using Groq with the given context
  */
 export async function generateResponse(query, context, conversationHistory = []) {
   try {
+    // Initialize client if not already done
+    if (!client) {
+      client = initializeGroqClient();
+    }
+
     const systemPrompt = buildSystemPrompt(context);
 
     const messages = [
@@ -24,16 +37,42 @@ export async function generateResponse(query, context, conversationHistory = [])
       },
     ];
 
-    const response = await client.chat.completions.create({
-      model: config.groqModel,
-      max_tokens: config.maxTokens || 2048,
-      messages,
-      temperature: 0.2,
-      top_p: 0.9,
-      stream: false,
-    });
+    let response;
+    try {
+      response = await client.chat.completions.create({
+        model: config.groqModel,
+        max_tokens: config.maxTokens || 2048,
+        messages,
+        temperature: 0.2,
+        top_p: 0.9,
+        stream: false,
+      });
+    } catch (groqError) {
+      console.error('Groq API Error:', {
+        message: groqError.message,
+        status: groqError.status,
+        type: groqError.type,
+      });
+      
+      // Handle specific Groq errors
+      if (groqError.status === 401) {
+        throw new Error('Invalid GROQ_API_KEY - check your environment variables');
+      } else if (groqError.status === 429) {
+        throw new Error('Groq API rate limit exceeded - please try again later');
+      } else if (groqError.status === 500) {
+        throw new Error('Groq API server error - please try again later');
+      } else if (groqError.message?.includes('ECONNREFUSED') || groqError.message?.includes('ETIMEDOUT')) {
+        throw new Error('Cannot connect to Groq API - check your internet connection');
+      }
+      
+      throw new Error(`Groq API error: ${groqError.message}`);
+    }
 
-    let responseText = response.choices[0]?.message?.content || '';
+    if (!response?.choices?.[0]?.message?.content) {
+      throw new Error('Invalid response from Groq API - no content in response');
+    }
+
+    let responseText = response.choices[0].message.content;
     
     // Remove thinking tags if present
     responseText = responseText.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
@@ -48,7 +87,10 @@ export async function generateResponse(query, context, conversationHistory = [])
     };
   } catch (error) {
     console.error('Error generating response:', error);
-    throw error;
+    // Re-throw with consistent error format
+    const err = new Error(error.message || 'Failed to generate response');
+    err.status = error.status || 500;
+    throw err;
   }
 }
 
