@@ -1,159 +1,191 @@
-# AI RAG Chatbot
+# 🤖 AI RAG Chatbot
 
-A retrieval-augmented generation (RAG) chatbot that combines document retrieval with AI-powered responses using Claude API.
+An intelligent Retrieval-Augmented Generation (RAG) chatbot powered by Groq's Qwen model. Upload your documents and ask questions to get accurate, context-aware answers.
 
-## Features
+## ✨ Features
 
-- **Document Management**: Upload and manage documents for retrieval
-- **Semantic Search**: Find relevant documents using vector embeddings
-- **Context-Aware Responses**: Generate answers based on retrieved documents
-- **REST API**: Simple HTTP endpoints for interaction
-- **Conversation History**: Track multi-turn conversations
+- 📄 **Document Upload** - Support for Text (.txt) and Word (.docx, .doc) files
+- 🔍 **Semantic Search** - Find relevant documents using intelligent retrieval
+- 🤖 **AI-Powered Q&A** - Get accurate answers using RAG with Groq's Qwen 3.6 27B model
+- 💬 **Real-time Chat** - Interactive conversation interface
+- 📚 **Document Management** - Upload, view, and delete documents
+- 🎨 **Beautiful UI** - Modern, responsive interface with purple gradient design
 
-## Project Structure
+## 🚀 Quick Start
+
+### Prerequisites
+- Node.js 18+
+- Groq API key (get it free at https://console.groq.com)
+
+### Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/Waseem771/ai-rag-chatbot.git
+cd ai-rag-chatbot
+
+# Install dependencies
+npm install
+
+# Create .env file
+cp .env.example .env
+
+# Add your Groq API key to .env
+# GROQ_API_KEY=your_api_key_here
+```
+
+### Running Locally
+
+```bash
+# Development mode with auto-reload
+npm run dev
+
+# Production mode
+npm start
+```
+
+Open http://localhost:3000 in your browser.
+
+## 📖 How to Use
+
+1. **Upload a Document**
+   - Go to "Documents" panel
+   - Choose "Upload File" or "Text Input"
+   - Upload your document (text or Word file)
+
+2. **Ask Questions**
+   - Type your question in the chat panel
+   - Click "Send" or press Enter
+   - Get instant answers based on your documents
+
+3. **Manage Documents**
+   - View all uploaded documents
+   - Delete documents you no longer need
+
+## 🏗️ Architecture
+
+- **Backend:** Node.js + Express
+- **Frontend:** HTML5 + CSS3 + Vanilla JavaScript
+- **AI Model:** Groq's Qwen 3.6 27B (free API)
+- **RAG Engine:** Semantic search with embeddings
+- **Storage:** JSON-based file system
+
+### Project Structure
 
 ```
 ai-rag-chatbot/
 ├── src/
-│   ├── api/              # Express routes and controllers
-│   ├── rag/              # RAG engine core logic
-│   ├── models/           # Data models and schemas
-│   ├── utils/            # Utility functions
-│   ├── scripts/          # One-off scripts (embeddings, etc.)
-│   ├── config.js         # Configuration management
-│   └── index.js          # Application entry point
-├── data/                 # Document storage and embeddings
-├── tests/                # Test files
-├── .env.example          # Environment variables template
-├── package.json          # Project dependencies
-└── README.md             # This file
+│   ├── api/              # API routes and middleware
+│   ├── rag/              # RAG engine (retriever & generator)
+│   ├── models/           # Data models
+│   ├── utils/            # Utilities (embeddings, storage, etc.)
+│   ├── config.js         # Configuration
+│   └── index.js          # Server entry point
+├── public/
+│   └── index.html        # Frontend UI
+├── data/                 # Data storage (documents, embeddings)
+└── package.json
 ```
 
-## Setup
+## 🔑 Environment Variables
 
-### 1. Clone and Install
+```env
+# Groq API Configuration
+GROQ_API_KEY=your_groq_api_key
+GROQ_MODEL=qwen/qwen3.6-27b
 
-```bash
-cd ai-rag-chatbot
-npm install
+# Server Configuration
+PORT=3000
+NODE_ENV=development
+
+# Storage
+DB_PATH=./data/documents.json
+EMBEDDINGS_PATH=./data/embeddings.json
+
+# RAG Configuration
+MAX_CONTEXT_LENGTH=4000
+MAX_TOKENS=2048
+TOP_K_RESULTS=5
+MIN_SIMILARITY_SCORE=0.3
 ```
 
-### 2. Configure Environment
+## 📚 API Endpoints
 
-```bash
-cp .env.example .env
-# Edit .env and add your ANTHROPIC_API_KEY
-```
+### Documents
+- `POST /api/documents` - Upload a document
+- `GET /api/documents` - List all documents
+- `GET /api/documents/:id` - Get specific document
+- `PUT /api/documents/:id` - Update document
+- `DELETE /api/documents/:id` - Delete document
 
-### 3. Start the Server
+### Chat
+- `POST /api/chat` - Send query and get response
+- `GET /api/chat/:conversationId` - Get conversation history
+- `DELETE /api/chat/:conversationId` - Delete conversation
 
-```bash
-npm start
-```
+### Health
+- `GET /health` - Server health check
 
-The API will be available at `http://localhost:3000`
+## 🧪 Testing
 
-## API Endpoints
-
-### Upload Document
-```bash
-POST /api/documents
-Content-Type: application/json
-
-{
-  "title": "Document Title",
-  "content": "Document content here..."
-}
-```
-
-### Chat (Query with RAG)
-```bash
-POST /api/chat
-Content-Type: application/json
-
-{
-  "query": "Your question here",
-  "conversationId": "optional-conversation-id"
-}
-```
-
-### Get Documents
-```bash
-GET /api/documents
-```
-
-### Delete Document
-```bash
-DELETE /api/documents/:id
-```
-
-## How RAG Works
-
-1. **Document Ingestion**: Documents are stored with their embeddings
-2. **Retrieval**: User queries are converted to embeddings and matched against document embeddings
-3. **Context Assembly**: Top-K similar documents are retrieved
-4. **Generation**: Claude generates a response using the retrieved context
-
-## Configuration
-
-Edit `.env` to customize:
-
-- `PORT`: Server port (default: 3000)
-- `ANTHROPIC_API_KEY`: Your Claude API key
-- `MODEL_ID`: Claude model to use (default: claude-opus-4-8)
-- `TOP_K_RESULTS`: Number of documents to retrieve (default: 5)
-- `MIN_SIMILARITY_SCORE`: Minimum similarity threshold (default: 0.3)
-
-## Development
-
-### Run in Watch Mode
-```bash
-npm run dev
-```
-
-### Run Tests
 ```bash
 npm test
 ```
 
-### Generate Embeddings
+## 📝 Example Usage
+
 ```bash
-npm run embeddings
+# Upload a document
+curl -X POST http://localhost:3000/api/documents \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "My Document",
+    "content": "This is my document content..."
+  }'
+
+# Ask a question
+curl -X POST http://localhost:3000/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{"query": "What is this document about?"}'
 ```
 
-## Architecture
+## 🚀 Deployment
 
-### RAG Engine
-The RAG engine handles:
-- Vector embeddings and similarity search
-- Document retrieval and ranking
-- Context assembly for the LLM
-- Response generation with Claude
+### Vercel Deployment
 
-### API Layer
-Express-based REST API with:
-- Document management endpoints
-- Chat/query endpoints
-- Conversation tracking
+1. Push your code to GitHub
+2. Go to https://vercel.com
+3. Click "New Project"
+4. Import your GitHub repository
+5. Add environment variables:
+   - `GROQ_API_KEY`: Your Groq API key
+   - `GROQ_MODEL`: qwen/qwen3.6-27b
+6. Deploy!
 
-## Limitations
+## 📄 License
 
-- Currently uses simple cosine similarity for retrieval
-- Embeddings are computed by Claude API (not fine-tuned)
-- In-memory storage (file-based JSON)
-- Single-threaded server
+MIT License - see LICENSE file for details
 
-## Future Enhancements
+## 🤝 Contributing
 
-- [ ] Database integration (PostgreSQL with pgvector)
-- [ ] Hybrid search (keyword + semantic)
-- [ ] Multi-modal documents (images, PDFs)
-- [ ] Fine-tuned embeddings
-- [ ] Caching layer
-- [ ] Authentication
-- [ ] Rate limiting
-- [ ] Web UI
+Contributions are welcome! Feel free to:
+- Report bugs
+- Suggest features
+- Submit pull requests
 
-## License
+## 📧 Support
 
-MIT
+For issues or questions:
+- Open an issue on GitHub
+- Check the documentation
+- Visit Groq console for API support
+
+## 🙏 Acknowledgments
+
+- [Groq](https://groq.com) - Free LLM API
+- [Express.js](https://expressjs.com) - Web framework
+- [Mammoth.js](https://github.com/mwilson/mammoth.js) - Word document parsing
+
+---
+
+**Made with ❤️ using Groq AI**
