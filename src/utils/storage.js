@@ -1,162 +1,30 @@
-import fs from 'fs/promises';
-import path from 'path';
-import config from '../config.js';
+import { getAdapter, initializeStorageAdapter } from './storageAdapter.js';
 
-// In-memory storage for Vercel (serverless has no persistent file system)
-let documentsCache = null;
-let embeddingsCache = null;
-
-// Ensure data directory exists (for local development only)
+// Initialize storage adapter on module load
 export async function initializeDataDirectory() {
-  try {
-    // In Vercel, skip file initialization - use in-memory storage
-    if (process.env.VERCEL) {
-      console.log('Running on Vercel - using in-memory storage');
-      documentsCache = [];
-      embeddingsCache = {};
-      return;
-    }
-
-    const dataDir = path.dirname(config.dbPath);
-    await fs.mkdir(dataDir, { recursive: true });
-
-    // Initialize files if they don't exist
-    const dbExists = await fileExists(config.dbPath);
-    if (!dbExists) {
-      await fs.writeFile(config.dbPath, JSON.stringify([], null, 2));
-    }
-    
-    const embExists = await fileExists(config.embeddingsPath);
-    if (!embExists) {
-      await fs.writeFile(config.embeddingsPath, JSON.stringify({}, null, 2));
-    }
-  } catch (error) {
-    console.error('Failed to initialize data directory:', error);
-    // Don't throw - allow in-memory storage as fallback
-  }
-}
-
-async function fileExists(filePath) {
-  try {
-    await fs.access(filePath);
-    return true;
-  } catch {
-    return false;
-  }
+  await initializeStorageAdapter();
 }
 
 // Load documents from storage
 export async function loadDocuments() {
-  try {
-    // Use in-memory cache if available (Vercel)
-    if (process.env.VERCEL && documentsCache) {
-      return Array.isArray(documentsCache) ? documentsCache : [];
-    }
-
-    // Try file storage (local development)
-    try {
-      const data = await fs.readFile(config.dbPath, 'utf-8');
-      const parsed = JSON.parse(data);
-      // Handle both array and nested object format
-      const docs = Array.isArray(parsed) ? parsed : (parsed.documents || []);
-      // Cache the normalized data
-      documentsCache = docs;
-      return docs;
-    } catch (error) {
-      console.error('Error reading documents file:', error.message);
-      // Fallback to in-memory if file doesn't exist
-      if (!documentsCache) {
-        documentsCache = [];
-      }
-      return Array.isArray(documentsCache) ? documentsCache : [];
-    }
-  } catch (error) {
-    console.error('Error loading documents:', error);
-    if (!documentsCache) {
-      documentsCache = [];
-    }
-    return Array.isArray(documentsCache) ? documentsCache : [];
-  }
+  const adapter = getAdapter();
+  return await adapter.loadDocuments();
 }
 
 // Save documents to storage
 export async function saveDocuments(documents) {
-  try {
-    // Normalize to array format
-    const docs = Array.isArray(documents) ? documents : [];
-    // Save to in-memory cache
-    documentsCache = docs;
-
-    // Try to save to file (local development)
-    if (!process.env.VERCEL) {
-      try {
-        // Save as plain array, not nested object
-        await fs.writeFile(config.dbPath, JSON.stringify(docs, null, 2));
-      } catch (error) {
-        console.warn('Could not save to file, using in-memory storage:', error.message);
-      }
-    }
-  } catch (error) {
-    console.error('Error saving documents:', error);
-    throw error;
-  }
+  const adapter = getAdapter();
+  await adapter.saveDocuments(documents);
 }
 
 // Load embeddings from storage
 export async function loadEmbeddings() {
-  try {
-    // Use in-memory cache if available (Vercel)
-    if (process.env.VERCEL && embeddingsCache) {
-      return typeof embeddingsCache === 'object' ? embeddingsCache : {};
-    }
-
-    // Try file storage (local development)
-    try {
-      const data = await fs.readFile(config.embeddingsPath, 'utf-8');
-      const parsed = JSON.parse(data);
-      // Handle both direct object and nested format
-      const embs = typeof parsed === 'object' && !Array.isArray(parsed) 
-        ? (parsed.embeddings || parsed) 
-        : {};
-      // Cache the normalized data
-      embeddingsCache = embs;
-      return embs;
-    } catch (error) {
-      console.error('Error reading embeddings file:', error.message);
-      // Fallback to in-memory if file doesn't exist
-      if (!embeddingsCache) {
-        embeddingsCache = {};
-      }
-      return typeof embeddingsCache === 'object' ? embeddingsCache : {};
-    }
-  } catch (error) {
-    console.error('Error loading embeddings:', error);
-    if (!embeddingsCache) {
-      embeddingsCache = {};
-    }
-    return typeof embeddingsCache === 'object' ? embeddingsCache : {};
-  }
+  const adapter = getAdapter();
+  return await adapter.loadEmbeddings();
 }
 
 // Save embeddings to storage
 export async function saveEmbeddings(embeddings) {
-  try {
-    // Normalize to object format
-    const embs = typeof embeddings === 'object' && !Array.isArray(embeddings) ? embeddings : {};
-    // Save to in-memory cache - store as plain object, not nested
-    embeddingsCache = embs;
-
-    // Try to save to file (local development)
-    if (!process.env.VERCEL) {
-      try {
-        // Save as plain object, not nested
-        await fs.writeFile(config.embeddingsPath, JSON.stringify(embs, null, 2));
-      } catch (error) {
-        console.warn('Could not save to file, using in-memory storage:', error.message);
-      }
-    }
-  } catch (error) {
-    console.error('Error saving embeddings:', error);
-    throw error;
-  }
+  const adapter = getAdapter();
+  await adapter.saveEmbeddings(embeddings);
 }
