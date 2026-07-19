@@ -14,8 +14,8 @@ const config = {
   // Groq API Configuration
   groqApiKey: process.env.GROQ_API_KEY,
 
-  // Models
-  groqModel: process.env.GROQ_MODEL || 'mixtral-8x7b-32768',
+  // Models - Use correct current model
+  groqModel: process.env.GROQ_MODEL || 'qwen/qwen3.6-27b',
 
   // Paths
   dbPath: process.env.DB_PATH || path.join(__dirname, '../data/documents.json'),
@@ -31,7 +31,7 @@ const config = {
 // Validation
 if (!config.groqApiKey) {
   console.warn('⚠️  GROQ_API_KEY environment variable is not set. RAG queries will fail.');
-  console.warn('Please add GROQ_API_KEY to your .env file to enable chat functionality.');
+  console.warn('Please add GROQ_API_KEY to your Vercel environment variables or .env file.');
 }
 
 export default config;
