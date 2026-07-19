@@ -1,0 +1,12 @@
+data/
+uploads/
+*.log
+.env
+.env.local
+node_modules
+.git
+.gitignore
+README_FIRST.txt
+CLAUDE.md
+*.test.js
+tests/
