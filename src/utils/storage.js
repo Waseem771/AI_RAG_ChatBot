@@ -59,8 +59,11 @@ export async function loadDocuments() {
       const parsed = JSON.parse(data);
       // Handle both array and nested object format
       const docs = Array.isArray(parsed) ? parsed : (parsed.documents || []);
+      // Cache the normalized data
+      documentsCache = docs;
       return docs;
-    } catch {
+    } catch (error) {
+      console.error('Error reading documents file:', error.message);
       // Fallback to in-memory if file doesn't exist
       if (!documentsCache) {
         documentsCache = [];
@@ -79,13 +82,16 @@ export async function loadDocuments() {
 // Save documents to storage
 export async function saveDocuments(documents) {
   try {
+    // Normalize to array format
+    const docs = Array.isArray(documents) ? documents : [];
     // Save to in-memory cache
-    documentsCache = Array.isArray(documents) ? documents : [];
+    documentsCache = docs;
 
     // Try to save to file (local development)
     if (!process.env.VERCEL) {
       try {
-        await fs.writeFile(config.dbPath, JSON.stringify(documents, null, 2));
+        // Save as plain array, not nested object
+        await fs.writeFile(config.dbPath, JSON.stringify(docs, null, 2));
       } catch (error) {
         console.warn('Could not save to file, using in-memory storage:', error.message);
       }
@@ -112,8 +118,11 @@ export async function loadEmbeddings() {
       const embs = typeof parsed === 'object' && !Array.isArray(parsed) 
         ? (parsed.embeddings || parsed) 
         : {};
+      // Cache the normalized data
+      embeddingsCache = embs;
       return embs;
-    } catch {
+    } catch (error) {
+      console.error('Error reading embeddings file:', error.message);
       // Fallback to in-memory if file doesn't exist
       if (!embeddingsCache) {
         embeddingsCache = {};
@@ -132,13 +141,16 @@ export async function loadEmbeddings() {
 // Save embeddings to storage
 export async function saveEmbeddings(embeddings) {
   try {
+    // Normalize to object format
+    const embs = typeof embeddings === 'object' && !Array.isArray(embeddings) ? embeddings : {};
     // Save to in-memory cache - store as plain object, not nested
-    embeddingsCache = typeof embeddings === 'object' ? embeddings : {};
+    embeddingsCache = embs;
 
     // Try to save to file (local development)
     if (!process.env.VERCEL) {
       try {
-        await fs.writeFile(config.embeddingsPath, JSON.stringify(embeddings, null, 2));
+        // Save as plain object, not nested
+        await fs.writeFile(config.embeddingsPath, JSON.stringify(embs, null, 2));
       } catch (error) {
         console.warn('Could not save to file, using in-memory storage:', error.message);
       }
