@@ -1,0 +1,85 @@
+﻿import express from 'express';
+import cors from 'cors';
+import bodyParser from 'body-parser';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import config from './config.js';
+import documentRoutes from './api/routes/documents.js';
+import chatRoutes from './api/routes/chat.js';
+import { initializeDataDirectory } from './utils/storage.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const app = express();
+
+// Middleware
+app.use(cors());
+app.use(bodyParser.json({ limit: '10mb' }));
+app.use(express.json());
+
+// Serve static files from public directory
+app.use(express.static(path.join(__dirname, '../public')));
+
+// Initialize data directory
+await initializeDataDirectory();
+
+// API Routes
+app.use('/api/documents', documentRoutes);
+app.use('/api/chat', chatRoutes);
+
+// Health check
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Serve index.html for root path
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/index.html'));
+});
+
+// API Documentation endpoint
+app.get('/api', (req, res) => {
+  res.json({
+    message: '🤖 Welcome to AI RAG Chatbot!',
+    version: '3.0.0',
+    status: 'running',
+    api: 'Groq (Free)',
+    features: {
+      fileUpload: 'Supports PDF, Word, and Text files',
+      embedding: 'Automatic document embedding',
+      semanticSearch: 'Find relevant documents',
+      chat: 'Multi-turn conversations'
+    },
+    endpoints: {
+      documents: {
+        create: 'POST /api/documents (supports file upload)',
+        list: 'GET /api/documents',
+        get: 'GET /api/documents/:id',
+        update: 'PUT /api/documents/:id',
+        delete: 'DELETE /api/documents/:id'
+      },
+      chat: {
+        query: 'POST /api/chat',
+        history: 'GET /api/chat/:conversationId',
+        delete: 'DELETE /api/chat/:conversationId'
+      }
+    }
+  });
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Error:', err);
+  res.status(err.status || 500).json({
+    error: err.message || 'Internal server error',
+    status: err.status || 500,
+  });
+});
+
+// Start server
+app.listen(config.port, () => {
+  console.log(`🚀 RAG Chatbot v3.0.0 running on http://localhost:${config.port}`);
+  console.log(`🌐 Open http://localhost:${config.port} in your browser`);
+  console.log(`📁 File upload: PDF, Word (.docx), Text files supported`);
+  console.log(`Environment: ${config.nodeEnv}`);
+  console.log(`Model: ${config.groqModel}`);
+});
