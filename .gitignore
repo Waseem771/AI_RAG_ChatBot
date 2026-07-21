@@ -1,35 +1,24 @@
-﻿# Dependencies
+.claude/settings.local.json
 node_modules/
-npm-debug.log
-yarn-error.log
-
-# Environment variables
 .env
-.env.local
-.env.*.local
-
-# Data files
 data/
-uploads/
-
-# IDE
+*.log
+.DS_Store
+dist/
 .vscode/
 .idea/
 *.swp
 *.swo
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Logs
-logs/
-*.log
-
-# Build
-dist/
+*~
+.env.local
+.env.*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.cache/
+.next/
 build/
+out/
+.turbo/
 
-# Temp files
-*.tmp
-temp/
+NUL

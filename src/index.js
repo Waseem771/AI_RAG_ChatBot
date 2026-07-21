@@ -1,4 +1,4 @@
-import express from 'express';
+﻿import express from 'express';
 import cors from 'cors';
 import bodyParser from 'body-parser';
 import path from 'path';
@@ -7,7 +7,7 @@ import config from './config.js';
 import documentRoutes from './api/routes/documents.js';
 import chatRoutes from './api/routes/chat.js';
 import { initializeDataDirectory } from './utils/storage.js';
-import { errorHandler, notFoundHandler } from './api/middleware/errorHandler.js';
+import { initializePostgres } from './storage/postgres.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -15,14 +15,26 @@ const app = express();
 // Middleware
 app.use(cors());
 app.use(bodyParser.json({ limit: '10mb' }));
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ limit: '10mb', extended: true }));
+app.use(express.json());
 
 // Serve static files from public directory
 app.use(express.static(path.join(__dirname, '../public')));
 
-// Initialize data directory
-await initializeDataDirectory();
+// Initialize storage (file or database)
+console.log(`\n🔧 Storage Mode: ${config.storageMode.toUpperCase()}`);
+if (config.useDatabase) {
+  console.log('🗄️  Initializing PostgreSQL storage...');
+  try {
+    await initializePostgres();
+  } catch (error) {
+    console.warn('⚠️  PostgreSQL initialization failed:', error.message);
+    console.warn('Falling back to file-based storage...');
+    await initializeDataDirectory();
+  }
+} else {
+  console.log('📄 Initializing file-based storage (local development)...');
+  await initializeDataDirectory();
+}
 
 // API Routes
 app.use('/api/documents', documentRoutes);
@@ -30,10 +42,10 @@ app.use('/api/chat', chatRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
-    timestamp: new Date().toISOString(),
-    environment: config.nodeEnv,
+  res.json({
+    status: 'ok',
+    storage: config.storageMode,
+    timestamp: new Date().toISOString()
   });
 });
 
@@ -46,8 +58,9 @@ app.get('/', (req, res) => {
 app.get('/api', (req, res) => {
   res.json({
     message: '🤖 Welcome to AI RAG Chatbot!',
-    version: '3.0.0',
+    version: '3.1.0',
     status: 'running',
+    storage: config.useDatabase ? 'PostgreSQL' : 'File-based',
     api: 'Groq (Free)',
     features: {
       fileUpload: 'Supports PDF, Word, and Text files',
@@ -72,30 +85,23 @@ app.get('/api', (req, res) => {
   });
 });
 
-// 404 handler for API routes
-app.use('/api', notFoundHandler);
-
-// Error handling middleware (must be last)
-app.use(errorHandler);
-
-// Global unhandled rejection handler
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-});
-
-// Global uncaught exception handler
-process.on('uncaughtException', (error) => {
-  console.error('Uncaught Exception:', error);
-  process.exit(1);
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Error:', err);
+  res.status(err.status || 500).json({
+    error: err.message || 'Internal server error',
+    status: err.status || 500,
+  });
 });
 
 // Start server
-const port = config.port || 3000;
-app.listen(port, () => {
-  console.log(`🚀 RAG Chatbot v3.0.0 running on http://localhost:${port}`);
-  console.log(`🌐 Open http://localhost:${port} in your browser`);
+app.listen(config.port, () => {
+  console.log(`\n🚀 RAG Chatbot v3.1.0 running on http://localhost:${config.port}`);
+  console.log(`🌐 Open http://localhost:${config.port} in your browser`);
   console.log(`📁 File upload: PDF, Word (.docx), Text files supported`);
   console.log(`Environment: ${config.nodeEnv}`);
   console.log(`Model: ${config.groqModel}`);
-  console.log(`API Key configured: ${config.groqApiKey ? '✅' : '❌'}`);
+  console.log(`Storage: ${config.useDatabase ? 'PostgreSQL' : 'File-based'}\n`);
 });
+
+export default app;

@@ -1,169 +1,154 @@
-# AI RAG Chatbot - Project Documentation
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Overview
 
-This is a Node.js-based Retrieval-Augmented Generation (RAG) chatbot that combines document retrieval with Claude API for intelligent question answering.
+AI RAG Chatbot is a Node.js-based Retrieval-Augmented Generation chatbot that combines document retrieval with Groq API for intelligent question answering. It features file upload support (PDF, DOCX, TXT), semantic search via cosine similarity on hash-based embeddings, and multi-turn conversations.
 
-## Architecture
+## Quick Commands
 
-### Core Components
+```bash
+# Development
+npm install                 # Install dependencies
+npm run dev                 # Run with file watcher
+npm start                   # Start server (production mode)
+npm test                    # Run all tests
+npm run lint                # Run ESLint
 
-1. **RAG Engine** (`src/rag/`)
-   - `retriever.js`: Handles semantic search and document ranking
-   - `generator.js`: Manages Claude API calls for response generation
+# Database/Data
+npm run embeddings          # Regenerate embeddings for all documents
+```
 
-2. **API Layer** (`src/api/`)
-   - `routes/documents.js`: CRUD operations for documents
-   - `routes/chat.js`: Conversation and query endpoints
-   - `middleware/errorHandler.js`: Centralized error handling
+## Project Architecture
 
-3. **Utilities** (`src/utils/`)
-   - `embeddings.js`: Vector similarity and ranking algorithms
-   - `storage.js`: File-based persistence layer
+### Core Layers
 
-4. **Data Models** (`src/models/`)
-   - `document.js`: Document creation and validation
-   - `conversation.js`: Conversation management
+**1. API Layer** (`src/api/routes/`)
+- `documents.js`: CRUD endpoints for document management (POST/GET/PUT/DELETE)
+- `chat.js`: Query endpoints with RAG-augmented responses
+- File upload handling via `multer` → `fileExtractor` → storage
 
-## Key Flows
+**2. RAG Engine** (`src/rag/`)
+- `retriever.js`: Semantic search via cosine similarity on embeddings
+- `generator.js`: Groq API integration for response generation
 
-### Document Upload
-1. User POSTs document to `/api/documents`
-2. Document is validated
-3. Simple embedding is generated
-4. Document and embedding are persisted to disk
+**3. Storage Layer** (`src/utils/storage.js`)
+- **CRITICAL LIMITATION**: File-based JSON storage (`data/documents.json`, `data/embeddings.json`)
+- Not suitable for serverless (Vercel) — files are ephemeral and lost on cold start
+- See **Vercel Deployment Issues** section below
 
-### Query Processing
-1. User sends query to `/api/chat`
-2. Query is embedded using the same algorithm
-3. Cosine similarity ranks stored documents
-4. Top-K documents are retrieved
-5. Context is built from retrieved documents
-6. Claude generates response with the context
-7. Messages are stored in conversation history
+**4. Utilities** (`src/utils/`)
+- `embeddings.js`: 384-dim hash-based embedding (deterministic, not semantically sophisticated)
+- `fileExtractor.js`: Text extraction (supports DOCX via `mammoth`, TXT, no PDF)
+- `fileUpload.js`: Multer disk storage to `./uploads` (also ephemeral on Vercel)
+- `logger.js`: Logging utilities
+
+### Data Models
+
+- `document.js`: Document creation/validation (id, title, content, metadata, timestamps)
+- `conversation.js`: Conversation tracking (in-memory; lost on restart)
 
 ## Configuration
 
-See `.env.example` for all environment variables:
-- `ANTHROPIC_API_KEY`: Required for Claude API access
-- `MODEL_ID`: Claude model to use (default: claude-opus-4-8)
-- `TOP_K_RESULTS`: Number of documents to retrieve per query
-- `MIN_SIMILARITY_SCORE`: Filtering threshold for document relevance
-
-## Storage
-
-Data is stored as JSON files in the `data/` directory:
-- `documents.json`: All documents with metadata
-- `embeddings.json`: Vector embeddings mapped by document ID
-
-### File Structure
-
-```
-data/
-├── documents.json      # [{id, title, content, metadata, createdAt, updatedAt}]
-└── embeddings.json     # {"docId": [0.1, 0.2, ...], ...}
-```
-
-## Embedding Strategy
-
-Currently uses a simple hash-based embedding:
-- 384 dimensions
-- Generated from document title + content
-- Deterministic but not semantically sophisticated
-
-**Future Enhancement**: Replace with Claude's embedding API for better semantic understanding.
+Environment variables (see `.env.example`):
+- `GROQ_API_KEY`: Free API key from https://console.groq.com (REQUIRED)
+- `GROQ_MODEL`: Model choice (default: `mixtral-8x7b-32768`)
+- `PORT`: Server port (default: 3000)
+- `TOP_K_RESULTS`: Documents to retrieve per query (default: 5)
+- `MIN_SIMILARITY_SCORE`: Relevance threshold 0.0–1.0 (default: 0.3)
+- `DB_PATH`, `EMBEDDINGS_PATH`: Storage paths (ignored on Vercel—see below)
 
 ## API Endpoints
 
 ### Documents
-- `POST /api/documents` - Create document
-- `GET /api/documents` - List all documents
-- `GET /api/documents/:id` - Get specific document
-- `PUT /api/documents/:id` - Update document
-- `DELETE /api/documents/:id` - Delete document
+- `POST /api/documents` — Upload document or submit text; supports multipart file upload
+- `GET /api/documents` — List all documents with count
+- `GET /api/documents/:id` — Fetch single document
+- `PUT /api/documents/:id` — Update title/content/metadata
+- `DELETE /api/documents/:id` — Delete document and embedding
 
 ### Chat
-- `POST /api/chat` - Send query, get response with RAG
-- `GET /api/chat/:conversationId` - Get conversation history
-- `DELETE /api/chat/:conversationId` - Delete conversation
+- `POST /api/chat` — Query with RAG context (returns conversationId, messages, context used)
+- `GET /api/chat/:conversationId` — Retrieve conversation history
+- `DELETE /api/chat/:conversationId` — Clear conversation
 
 ### Health
-- `GET /health` - Server health check
+- `GET /health` — Server status
+- `GET /api` — API documentation and feature list
 
-## Running the Project
+## Storage & Persistence
 
-```bash
-# Install dependencies
-npm install
+### Local Development
+- Documents and embeddings stored as JSON in `data/` directory
+- Uploaded files temporarily stored in `uploads/` (deleted after extraction)
+- Works as-is for local development
 
-# Create .env file
-cp .env.example .env
-# Edit .env and add ANTHROPIC_API_KEY
+### Vercel Production — **BROKEN (Ephemeral Filesystem)**
+**Problem**: Vercel's serverless functions have an ephemeral filesystem. Any files written to disk are lost when the function terminates. Document uploads and embeddings written to `data/` are immediately lost, causing:
+- ❌ "Error uploading" failures on file upload
+- ❌ Subsequent queries return no documents (empty database)
+- ❌ Cold starts reset state
 
-# Start server
-npm start
+**Solution (TODO)**: 
+1. Replace file-based storage with **PostgreSQL + pgvector** for persistent, production-grade storage
+2. Configure `DB_PATH` and `EMBEDDINGS_PATH` to point to database instead of files, OR create a new `src/storage/postgres.js` adapter
+3. Alternatively, use cloud storage (AWS S3, Google Cloud Storage) for documents and a database for metadata/embeddings
+4. See "Future Improvements" section
 
-# Or watch mode for development
-npm run dev
+## Common Tasks
 
-# Run tests
-npm test
+### Adding a New Document Field
+1. Update `src/models/document.js` validation schema
+2. Update `src/api/routes/documents.js` to accept the field in POST/PUT handlers
+3. Update `src/utils/storage.js` or database adapter if schema requires migration
 
-# Regenerate embeddings
-npm run embeddings
-```
+### Changing Embedding Strategy
+1. Modify `src/utils/embeddings.js` (`simpleEmbedding()` function)
+2. Regenerate all embeddings: `npm run embeddings`
+3. Note: Hash-based embeddings are deterministic—changing the algorithm breaks existing embeddings
+
+### Debugging Upload Failures
+1. Check `console.log` statements in `src/api/routes/documents.js` (lines 27–43)
+2. Verify `GROQ_API_KEY` is set and valid
+3. On Vercel: **This is almost certainly the file persistence issue** — see Vercel Production section above
 
 ## Testing
 
-Tests are located in `tests/` and use Node's built-in test runner:
+Tests use Node's built-in test runner:
 
 ```bash
-npm test
+npm test                    # Run all .test.js files in src/ and tests/
+node --test src/**/*.test.js # Run specific tests
 ```
 
-Test coverage includes:
-- Embedding similarity calculations
+Test files cover:
+- Embedding calculations (similarity, distance)
 - Document validation
 - Conversation management
-- Model creation
 
-## Example Usage
+## Limitations & Known Issues
 
-See `examples/basic-usage.js` for a complete example:
-
-```bash
-node examples/basic-usage.js
-```
-
-This demonstrates:
-1. Uploading documents
-2. Retrieving documents
-3. Querying with RAG
-4. Managing conversations
-5. Updating and deleting documents
-
-## Limitations
-
-1. **Simple Embeddings**: Hash-based embeddings lack semantic sophistication
-2. **In-Memory Conversations**: Conversation state is lost on server restart
-3. **Single Server**: No multi-instance support
-4. **No Authentication**: All endpoints are public
-5. **File-Based Storage**: Not suitable for production at scale
-6. **No Rate Limiting**: Vulnerable to abuse
+1. **Hash-based embeddings** are deterministic but not semantically meaningful (not trained on language)
+2. **Conversation state is in-memory** — lost on server restart
+3. **File extraction**: PDF support disabled; DOCX via `mammoth`; no image/multi-modal support
+4. **No authentication or rate limiting** — all endpoints public
+5. **File-based storage incompatible with Vercel** — see above
+6. **Single-threaded server** — no horizontal scaling
 
 ## Future Improvements
 
-- [ ] PostgreSQL with pgvector for production-grade storage
-- [ ] Claude embedding API for semantic similarity
-- [ ] Hybrid search combining keyword and semantic search
-- [ ] Multi-modal document support (PDF, images)
-- [ ] Web UI dashboard
-- [ ] Authentication and authorization
-- [ ] Rate limiting and quota management
-- [ ] Monitoring and logging
-- [ ] Caching layer for frequently accessed documents
+- [ ] PostgreSQL + pgvector for persistent, scalable storage
+- [ ] Groq embedding API for semantic (non-hash) embeddings
+- [ ] Hybrid search (keyword + semantic)
+- [ ] PDF support via `pdf-parse` or `pdfjs-dist`
 - [ ] Document chunking for large files
-- [ ] User feedback and ranking improvement
+- [ ] Web UI dashboard
+- [ ] Authentication (JWT/OAuth)
+- [ ] Rate limiting and quota management
+- [ ] Conversation persistence to database
+- [ ] Caching layer for frequent queries
+- [ ] Monitoring and structured logging
 
 ## Development Notes
 
