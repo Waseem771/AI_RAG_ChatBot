@@ -6,10 +6,18 @@ import { fileURLToPath } from 'url';
 import config from './config.js';
 import documentRoutes from './api/routes/documents.js';
 import chatRoutes from './api/routes/chat.js';
-import { initializeDataDirectory } from './utils/storage.js';
-import { initializePostgres } from './storage/postgres.js';
+import { initializeDataDirectorySync } from './utils/storage.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// Initialize storage synchronously at module load time
+try {
+  initializeDataDirectorySync();
+  console.log('✅ Storage initialized');
+} catch (error) {
+  console.error('❌ Storage init failed:', error);
+}
+
 const app = express();
 
 // Middleware
@@ -17,24 +25,53 @@ app.use(cors());
 app.use(bodyParser.json({ limit: '10mb' }));
 app.use(express.json());
 
-// Serve static files from public directory
+// Serve static files
 app.use(express.static(path.join(__dirname, '../public')));
 
-// Initialize storage (file or database)
-console.log(`\n🔧 Storage Mode: ${config.storageMode.toUpperCase()}`);
-if (config.useDatabase) {
-  console.log('🗄️  Initializing PostgreSQL storage...');
-  try {
-    await initializePostgres();
-  } catch (error) {
-    console.warn('⚠️  PostgreSQL initialization failed:', error.message);
-    console.warn('Falling back to file-based storage...');
-    await initializeDataDirectory();
-  }
-} else {
-  console.log('📄 Initializing file-based storage (local development)...');
-  await initializeDataDirectory();
+// Health check
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    storage: config.storageMode,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// API Routes
+app.use('/api/documents', documentRoutes);
+app.use('/api/chat', chatRoutes);
+
+// Root
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/index.html'));
+});
+
+// API docs
+app.get('/api', (req, res) => {
+  res.json({
+    message: '🤖 Welcome to AI RAG Chatbot!',
+    version: '3.1.0',
+    status: 'running'
+  });
+});
+
+// Error handler
+app.use((err, req, res, next) => {
+  console.error('Error:', err);
+  res.status(err.status || 500).json({
+    error: err.message || 'Internal server error',
+    status: err.status || 500,
+  });
+});
+
+// Local dev only
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(config.port, () => {
+    console.log(`🚀 Running on http://localhost:${config.port}`);
+  });
 }
+
+export default app;
 
 // API Routes
 app.use('/api/documents', documentRoutes);
@@ -94,14 +131,16 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start server
-app.listen(config.port, () => {
-  console.log(`\n🚀 RAG Chatbot v3.1.0 running on http://localhost:${config.port}`);
-  console.log(`🌐 Open http://localhost:${config.port} in your browser`);
-  console.log(`📁 File upload: PDF, Word (.docx), Text files supported`);
-  console.log(`Environment: ${config.nodeEnv}`);
-  console.log(`Model: ${config.groqModel}`);
-  console.log(`Storage: ${config.useDatabase ? 'PostgreSQL' : 'File-based'}\n`);
-});
+// Start server only in local development mode
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(config.port, () => {
+    console.log(`\n🚀 RAG Chatbot v3.1.0 running on http://localhost:${config.port}`);
+    console.log(`🌐 Open http://localhost:${config.port} in your browser`);
+    console.log(`📁 File upload: PDF, Word (.docx), Text files supported`);
+    console.log(`Environment: ${config.nodeEnv}`);
+    console.log(`Model: ${config.groqModel}`);
+    console.log(`Storage: ${config.useDatabase ? 'PostgreSQL' : 'File-based'}\n`);
+  });
+}
 
 export default app;
